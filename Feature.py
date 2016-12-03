@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[28]:
+# In[2]:
 
 class Feature(object):
     def __init__(self, path="~/mimic3/mimic3/demo/"):
@@ -39,6 +39,10 @@ class Feature(object):
         }
     
     def get_relative_time(self, admit_time, chart_time):
+        """
+        admit_time, chart_time str
+        :return value in seconds
+        """
         from datetime import datetime
         # Accepts string in "2144-07-24 09:00:00" format and returns difference in seconds
         adm_time = datetime.strptime(admit_time, '%Y-%m-%d %H:%M:%S')
@@ -47,15 +51,12 @@ class Feature(object):
         rel_time = del_time.days*86400 + del_time.seconds
         return rel_time
     
-    def get_patient_last_recorded_time(self, df_patient, admit_time):
-        max_time = 0
-        for index, row in df_patient.iterrows():
-            temp = self.get_relative_time(admit_time, row['CHARTTIME'])
-            if (temp > max_time):
-                max_time = temp
-        return max_time
-    
     def get_relative_time_per_admid(self, df, admit_time):
+        """
+        :param df: chartevent df for particular HADM_ID
+        :param admit_time: str
+        :return tuple (new df with extra column, max time patient was monitored)
+        """
         rlt = []
         max_time = 0
         for cTime in df['CHARTTIME']:
@@ -68,6 +69,11 @@ class Feature(object):
         return (df, max_time)
     
     def get_patient_event(self, df, item_ids, from_time_seconds, to_time_seconds, old_val):
+        """
+        :param df: chartevent df for particular HADM_ID
+        :param item_ids: list of ids whose value between from_time_seconds and to_time_seconds is averaged and returned
+        :param old_val: if patient not monitored during given time then use this value (typically previous value)
+        """
         import math
         
         m = df[df.ITEMID.isin(item_ids)]
@@ -82,9 +88,6 @@ class Feature(object):
         import pandas as pd
         admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', sep=',',header=0)
         chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv')
-        #hardcoded
-        admission_df = admission_df[admission_df['SUBJECT_ID'] == 10006]
-        chartevents_df = chartevents_df[chartevents_df['SUBJECT_ID'] == 10006]
         
         patients = admission_df.groupby('SUBJECT_ID')
         features = []
@@ -111,10 +114,42 @@ class Feature(object):
         return features
 
 
-# In[29]:
+# In[7]:
+
+import unittest
+import pandas as pd
 
 feature = Feature()
-print(feature.get_features())
+
+class TestFeature(unittest.TestCase):
+    def test_get_patient_event(self):
+        self.path="~/mimic3/mimic3/demo/"
+        admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', sep=',',header=0)
+        chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv')
+        admission_df = admission_df[admission_df['HADM_ID'] == 142345]            .drop('ROW_ID', 1)             .drop('')
+        chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
+        
+#         feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
+        self.assertEqual(1, 1)
+
+suite = unittest.TestLoader().loadTestsFromTestCase(TestFeature)
+unittest.TextTestRunner(verbosity=2).run(suite)
+
+
+# In[32]:
+
+path="~/mimic3/mimic3/demo/"
+admission_df = pd.read_csv(path+'ADMISSIONS.csv', sep=',',header=0)
+chartevents_df = pd.read_csv(path+'CHARTEVENTS.csv')
+admission_df = admission_df[admission_df['HADM_ID'] == 142345]
+chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
+feature = Feature()
+a, b = feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
+
+
+# In[33]:
+
+chartevents_df
 
 
 # In[ ]:
