@@ -1,11 +1,21 @@
 
 # coding: utf-8
 
-# In[2]:
+# In[44]:
 
 class Feature(object):
     def __init__(self, path="~/mimic3/mimic3/demo/"):
         self.path = path
+        
+    def get_admission(self):
+        import pandas as pd
+        admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', sep=',',header=0)
+        return admission_df             .drop('ROW_ID', 1)             .drop('DISCHTIME', 1)             .drop('DEATHTIME', 1)             .drop('ADMISSION_TYPE', 1)             .drop('ADMISSION_LOCATION', 1)             .drop('DISCHARGE_LOCATION', 1)             .drop('INSURANCE', 1)             .drop('LANGUAGE', 1)             .drop('RELIGION', 1)             .drop('MARITAL_STATUS', 1)             .drop('ETHNICITY', 1)             .drop('EDREGTIME', 1)             .drop('EDOUTTIME', 1)             .drop('DIAGNOSIS', 1)             .drop('HOSPITAL_EXPIRE_FLAG', 1)             .drop('HAS_CHARTEVENTS_DATA', 1)
+    
+    def get_chartevents(self):
+        import pandas as pd
+        chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv')
+        return chartevents_df             .drop('ROW_ID', 1)             .drop('STORETIME', 1)             .drop('CGID', 1)             .drop('VALUE', 1)             .drop('VALUEUOM', 1)             .drop('WARNING', 1)             .drop('ERROR', 1)             .drop('RESULTSTATUS', 1)             .drop('STOPPED', 1)
     
     def get_items(self):
         HR = [220045 ,211] #[Heart Rate, Heart Rate]
@@ -78,16 +88,16 @@ class Feature(object):
         
         m = df[df.ITEMID.isin(item_ids)]
         l = m[(m['RELTIME'] >= from_time_seconds) & (m['RELTIME'] < to_time_seconds)]
-        j = l['VALUE'].astype('float64').mean()
+        j = l['VALUENUM'].astype('float64').mean()
         if math.isnan(j): 
             return [old_val, 0]
         else:
             return [j, 1]
     
     def get_features(self):
-        import pandas as pd
-        admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', sep=',',header=0)
-        chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv')
+         
+        admission_df = self.get_admission()    
+        chartevents_df = self.get_chartevents()
         
         patients = admission_df.groupby('SUBJECT_ID')
         features = []
@@ -123,9 +133,8 @@ feature = Feature()
 
 class TestFeature(unittest.TestCase):
     def test_get_patient_event(self):
-        self.path="~/mimic3/mimic3/demo/"
-        admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', sep=',',header=0)
-        chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv')
+        admission_df = feature.get_admission()    
+        chartevents_df = feature.get_chartevents()
         admission_df = admission_df[admission_df['HADM_ID'] == 142345]            .drop('ROW_ID', 1)             .drop('')
         chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
         
@@ -136,20 +145,21 @@ suite = unittest.TestLoader().loadTestsFromTestCase(TestFeature)
 unittest.TextTestRunner(verbosity=2).run(suite)
 
 
-# In[32]:
+# In[46]:
 
-path="~/mimic3/mimic3/demo/"
-admission_df = pd.read_csv(path+'ADMISSIONS.csv', sep=',',header=0)
-chartevents_df = pd.read_csv(path+'CHARTEVENTS.csv')
+feature = Feature()
+admission_df = feature.get_admission()    
+chartevents_df = feature.get_chartevents()
 admission_df = admission_df[admission_df['HADM_ID'] == 142345]
 chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
-feature = Feature()
+
 a, b = feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
+b
 
 
-# In[33]:
+# In[47]:
 
-chartevents_df
+admission_df
 
 
 # In[ ]:
