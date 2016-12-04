@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[60]:
+# In[108]:
 
 class Feature(object):
     def __init__(self, path="~/mimic3/mimic3/demo/"):
@@ -89,19 +89,37 @@ class Feature(object):
         m = df[df.ITEMID.isin(item_ids)]
         l = m[(m['RELTIME'] >= from_time_seconds) & (m['RELTIME'] < to_time_seconds)]
         j = l['VALUENUM'].astype('float64').mean()
+        
         if math.isnan(j): 
             return [old_val, 0]
         else:
             return [j, 1]
     
+    def get_max_time(self, chartevents_df, admission_df):
+        max_t = 0
+        for idx, admission in admission_df.iterrows():
+            (chartevents_perAdm_df, max_time) = self.get_relative_time_per_admid(
+                chartevents_df[chartevents_df['HADM_ID'] == admission['HADM_ID']],
+                admission['ADMITTIME'])# max_time is in seconds
+            if(max_time > max_t):
+                max_t = max_time
+        return int(max_t/(60*10)) + 1
+        
+    
     def get_features(self):
+        """TODO: convert list of list of list to numpy 3d matrix as admit*time*featurevec"""
+        import numpy as np
          
         admission_df = self.get_admission()    
         chartevents_df = self.get_chartevents()
 #         admission_df = admission_df[admission_df['HADM_ID'] == 142345]
 #         chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
         
-        features = []
+        features = np.zeros(shape=(admission_df.shape[0], 
+                                  self.get_max_time(chartevents_df, admission_df),
+                                  len(self.get_items())*2))
+        
+        cnt2 = 0
         for idx, admission in admission_df.iterrows():
             print(str(admission['HADM_ID']) + ' started')
             import sys
@@ -110,35 +128,48 @@ class Feature(object):
             (chartevents_perAdm_df, max_time) = self.get_relative_time_per_admid(
                     chartevents_df[chartevents_df['HADM_ID'] == admission['HADM_ID']],
                     admission['ADMITTIME'])# max_time is in seconds
-            feature_patient = []
+            feature_patient = np.zeros(shape=(features.shape[1], features.shape[2]))
             prev_val = {}
+            
+            cnt = 0
             for it in range(0, max_time, 60*10):
                 feature_patient_time = []
                 items = self.get_items()
-                for item_name in items:
+                for item_name in sorted(items.keys()):
                     prev_val[item_name] = self.get_patient_event(chartevents_perAdm_df, 
                                             items[item_name], it, it+(60*10), 
-                                                       prev_val[item_name] if item_name in prev_val else 0)
+                                                       prev_val[item_name][0] if item_name in prev_val else 0)
                     feature_patient_time.extend(prev_val[item_name])
-                feature_patient.append(feature_patient_time)
-            features.append(feature_patient)
+#                 print(admission['HADM_ID'])
+#                 print(admission['ADMITTIME'])
+#                 print(it)
+#                 print(np.array(feature_patient_time))
+#                 print(feature_patient.shape)
+                feature_patient[cnt,:] = np.array(feature_patient_time)
+                cnt+=1
+#                 feature_patient.append(feature_patient_time)
+#             features.append(feature_patient)
+            features[cnt2,:] = feature_patient
+            cnt2+=1
             
         return features
 
 
-# In[65]:
+# In[109]:
 
-feature = Feature()
-
-print(feature.get_features())
+# feature = Feature()
 # admission_df = feature.get_admission()    
 # chartevents_df = feature.get_chartevents()
 # admission_df = admission_df[admission_df['HADM_ID'] == 142345]
-# chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
-# a, b = feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
+# chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345].head(5)
+# # chartevents_df
+# (a, max_time) = feature.get_relative_time_per_admid(
+#                     chartevents_df,
+#                     '2164-10-23 21:09:00')# max_time is in seconds
+# a = feature.get_patient_event(a, [599, 617], 96061, 96661, 4)
 
 
-# In[66]:
+# In[110]:
 
 # import unittest
 
@@ -156,6 +187,12 @@ print(feature.get_features())
 
 # suite = unittest.TestLoader().loadTestsFromTestCase(TestFeature)
 # unittest.TextTestRunner(verbosity=2).run(suite)
+
+
+# In[111]:
+
+feature = Feature()
+a = feature.get_features()
 
 
 # In[ ]:
