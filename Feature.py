@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[44]:
+# In[60]:
 
 class Feature(object):
     def __init__(self, path="~/mimic3/mimic3/demo/"):
@@ -74,7 +74,7 @@ class Feature(object):
             rlt.append(temp)
             if (temp > max_time):
                 max_time = temp
-            
+        
         df['RELTIME'] = rlt
         return (df, max_time)
     
@@ -98,68 +98,64 @@ class Feature(object):
          
         admission_df = self.get_admission()    
         chartevents_df = self.get_chartevents()
+#         admission_df = admission_df[admission_df['HADM_ID'] == 142345]
+#         chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
         
-        patients = admission_df.groupby('SUBJECT_ID')
         features = []
-        for subject_id in patients.groups:
-            patient = patients.get_group(subject_id)#patient is a dataframe for one patient
-
-            for index, patient_1 in patient.iterrows():
-                (chartevents_perAdm_df, max_time) = self.get_relative_time_per_admid(
-                    chartevents_df[chartevents_df['HADM_ID'] == patient_1['HADM_ID']],
-                    patient_1['ADMITTIME'])# max_time is in seconds
-                
-                feature_patient = []
-                prev_val = {}
-                for it in range(0, max_time, 60*10):
-                    feature_patient_time = []
-                    items = self.get_items()
-                    for item_name in items:
-                        prev_val[item_name] = self.get_patient_event(chartevents_perAdm_df, 
-                                                items[item_name], it, it+(60*10), 
-                                                           prev_val[item_name] if item_name in prev_val else 0)
-                        feature_patient_time.extend(prev_val[item_name])
-                    feature_patient.append(feature_patient_time)
-                features.append(feature_patient)
+        for idx, admission in admission_df.iterrows():
+            print(str(admission['HADM_ID']) + ' started')
+            import sys
+            sys.stdout.flush()
+            
+            (chartevents_perAdm_df, max_time) = self.get_relative_time_per_admid(
+                    chartevents_df[chartevents_df['HADM_ID'] == admission['HADM_ID']],
+                    admission['ADMITTIME'])# max_time is in seconds
+            feature_patient = []
+            prev_val = {}
+            for it in range(0, max_time, 60*10):
+                feature_patient_time = []
+                items = self.get_items()
+                for item_name in items:
+                    prev_val[item_name] = self.get_patient_event(chartevents_perAdm_df, 
+                                            items[item_name], it, it+(60*10), 
+                                                       prev_val[item_name] if item_name in prev_val else 0)
+                    feature_patient_time.extend(prev_val[item_name])
+                feature_patient.append(feature_patient_time)
+            features.append(feature_patient)
+            
         return features
 
 
-# In[7]:
-
-import unittest
-import pandas as pd
+# In[65]:
 
 feature = Feature()
 
-class TestFeature(unittest.TestCase):
-    def test_get_patient_event(self):
-        admission_df = feature.get_admission()    
-        chartevents_df = feature.get_chartevents()
-        admission_df = admission_df[admission_df['HADM_ID'] == 142345]            .drop('ROW_ID', 1)             .drop('')
-        chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
+print(feature.get_features())
+# admission_df = feature.get_admission()    
+# chartevents_df = feature.get_chartevents()
+# admission_df = admission_df[admission_df['HADM_ID'] == 142345]
+# chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
+# a, b = feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
+
+
+# In[66]:
+
+# import unittest
+
+# class TestFeature(unittest.TestCase):
+#     def test_get_patient_event(self):
+#         import pandas as pd
+#         feature = Feature()
+#         admission_df = feature.get_admission()    
+#         chartevents_df = feature.get_chartevents()
+#         admission_df = admission_df[admission_df['HADM_ID'] == 142345]
+#         chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
         
 #         feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
-        self.assertEqual(1, 1)
+#         self.assertEqual(1, 1)
 
-suite = unittest.TestLoader().loadTestsFromTestCase(TestFeature)
-unittest.TextTestRunner(verbosity=2).run(suite)
-
-
-# In[46]:
-
-feature = Feature()
-admission_df = feature.get_admission()    
-chartevents_df = feature.get_chartevents()
-admission_df = admission_df[admission_df['HADM_ID'] == 142345]
-chartevents_df = chartevents_df[chartevents_df['HADM_ID'] == 142345]
-
-a, b = feature.get_relative_time_per_admid(chartevents_df, '2164-10-23 21:09:00')
-b
-
-
-# In[47]:
-
-admission_df
+# suite = unittest.TestLoader().loadTestsFromTestCase(TestFeature)
+# unittest.TextTestRunner(verbosity=2).run(suite)
 
 
 # In[ ]:
