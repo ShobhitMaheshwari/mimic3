@@ -193,6 +193,8 @@ class Feature(object):
 
 feature = Feature()
 a = feature.get_features()
+import numpy as np
+np.save('feature', a)
 
 
 # In[ ]:
