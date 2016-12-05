@@ -6,16 +6,17 @@
 class Feature(object):
     def __init__(self, path="~/mimic3/mimic3/demo/"):
         self.path = path
+        self.interval = 10*60
         
     def get_admission(self):
         import pandas as pd
-        admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', sep=',',header=0)
-        return admission_df             .drop('ROW_ID', 1)             .drop('DISCHTIME', 1)             .drop('DEATHTIME', 1)             .drop('ADMISSION_TYPE', 1)             .drop('ADMISSION_LOCATION', 1)             .drop('DISCHARGE_LOCATION', 1)             .drop('INSURANCE', 1)             .drop('LANGUAGE', 1)             .drop('RELIGION', 1)             .drop('MARITAL_STATUS', 1)             .drop('ETHNICITY', 1)             .drop('EDREGTIME', 1)             .drop('EDOUTTIME', 1)             .drop('DIAGNOSIS', 1)             .drop('HOSPITAL_EXPIRE_FLAG', 1)             .drop('HAS_CHARTEVENTS_DATA', 1)
+        admission_df = pd.read_csv(self.path+'ADMISSIONS.csv', usecols=['SUBJECT_ID','HADM_ID','ADMITTIME', 'DEATHTIME'])
+        return admission_df
     
     def get_chartevents(self):
         import pandas as pd
-        chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv')
-        return chartevents_df             .drop('ROW_ID', 1)             .drop('STORETIME', 1)             .drop('CGID', 1)             .drop('VALUE', 1)             .drop('VALUEUOM', 1)             .drop('WARNING', 1)             .drop('ERROR', 1)             .drop('RESULTSTATUS', 1)             .drop('STOPPED', 1)
+        chartevents_df = pd.read_csv(self.path+'CHARTEVENTS.csv', usecols=['SUBJECT_ID','HADM_ID','ICUSTAY_ID','ITEMID','CHARTTIME','VALUENUM'])
+        return chartevents_df 
     
     def get_items(self):
         HR = [220045 ,211] #[Heart Rate, Heart Rate]
@@ -78,6 +79,23 @@ class Feature(object):
         df['RELTIME'] = rlt
         return (df, max_time)
     
+    def get_max_time_per_admid(self, df, admit_time):
+        """
+        :param df: chartevent df for particular HADM_ID
+        :param admit_time: str
+        :return tuple (new df with extra column, max time patient was monitored)
+        """
+        rlt = []
+        max_time = 0
+        for cTime in df['CHARTTIME']:
+            temp = self.get_relative_time(admit_time, cTime)
+            rlt.append(temp)
+            if (temp > max_time):
+                max_time = temp
+        
+        
+        return max_time
+    
     def get_patient_event(self, df, item_ids, from_time_seconds, to_time_seconds, old_val):
         """
         :param df: chartevent df for particular HADM_ID
@@ -98,49 +116,59 @@ class Feature(object):
     def get_max_time(self, chartevents_df, admission_df):
         max_t = 0
         for idx, admission in admission_df.iterrows():
-            (chartevents_perAdm_df, max_time) = self.get_relative_time_per_admid(
+            max_time = self.get_max_time_per_admid(
                 chartevents_df[chartevents_df['HADM_ID'] == admission['HADM_ID']],
                 admission['ADMITTIME'])# max_time is in seconds
             if(max_time > max_t):
                 max_t = max_time
-        return int(max_t/(60*10)) + 1
+        return int(max_t/(self.interval)) + 1
         
+    def printl(self, string):
+        import sys
+        print(string)
+        sys.stdout.flush()
     
     def get_features(self):
         """TODO: convert list of list of list to numpy 3d matrix as admit*time*featurevec"""
         import numpy as np
         import math
+        import sys
          
+        self.printl("reading files")
         admission_df = self.get_admission()    
         chartevents_df = self.get_chartevents()
+        self.printl("reading files done")
+        
+        features_1_shape = self.get_max_time(chartevents_df, admission_df)
+        self.printl("features_1_shape_ " + str(features_1_shape))
         
         features = np.zeros(shape=(admission_df.shape[0], 
-                                  self.get_max_time(chartevents_df, admission_df),
+                                  features_1_shape,
                                   len(self.get_items())*2))
         z = np.zeros(shape=(admission_df.shape[0]))
         
+        self.printl("numpy matrices initialized")
+        
         cnt2 = 0
         for idx, admission in admission_df.iterrows():
-            print(str(admission['HADM_ID']) + ' started')
-            import sys
-            sys.stdout.flush()
+            self.printl(str(admission['HADM_ID']) + ' started')
             
             (chartevents_perAdm_df, max_time) = self.get_relative_time_per_admid(
                     chartevents_df[chartevents_df['HADM_ID'] == admission['HADM_ID']],
                     admission['ADMITTIME'])# max_time is in seconds
             
-            z[cnt2] = math.ceil(max_time/(60*10))
+            z[cnt2] = math.ceil(max_time/(self.interval))
             feature_patient = np.zeros(shape=(features.shape[1], features.shape[2]))
             prev_val = {}
             
             cnt = 0
-            for it in range(0, max_time, 60*10):
+            for it in range(0, max_time, self.interval):
                 feature_patient_time = []
                 items = self.get_items()
                 for item_name in sorted(items.keys()):
                     prev_val[item_name] = self.get_patient_event(chartevents_perAdm_df, 
-                                            items[item_name], it, it+(60*10), 
-                                                       prev_val[item_name][0] if item_name in prev_val else 0)
+                                            items[item_name], it, it+(self.interval), 
+                                                       0)
                     feature_patient_time.extend(prev_val[item_name])
                 feature_patient[cnt,:] = np.array(feature_patient_time)
                 cnt+=1
@@ -152,9 +180,24 @@ class Feature(object):
     
 
 
-# In[ ]:
+# In[41]:
 
 # feature = Feature()
+# admission_df = feature.get_admission()    
+# chartevents_df = feature.get_chartevents()
+# a = feature.get_items()
+# b = []
+# for x in a:
+#     b.extend(a[x])
+
+# len(chartevents_df[chartevents_df['VALUENUM'].notnull()][chartevents_df['ITEMID'].isin(b)].HADM_ID.unique())
+# # admission_df[admission_df.index.isin([ 72 , 51,  97,  53,  63, 100,  89, 110,  42,  81,  87,   2,  83])]
+
+
+
+# In[29]:
+
+# admission_df
 
 
 # In[109]:
